@@ -5,13 +5,12 @@ require_once "config/config.php";
 require_once "classes/CCurl.php";
 
 
-createEntities('Lead', 100, 'leads');
-createEntities('Company', 100, 'companies');
-createEntities('Contact', 100, 'contacts');
+$leadsID = createEntities('Lead', 100, 'leads');
+$companiesID = createEntities('Company', 100, 'companies');
+$contactsID = createEntities('Contact', 100, 'contacts');
 
-linkEntities('leads', 'companies');
-linkEntities('leads', 'contacts');
-linkEntities('companies', 'contacts');
+linkEntities('leads', ['companies', 'contacts'], $leadsID, [$companiesID, $contactsID]);
+linkEntities('companies', ['contacts'], $companiesID, [$contactsID]);
 
 /**
 * Cоздание экземпляров сущности
@@ -35,8 +34,10 @@ function createEntities($type, $count, $method) {
 		$data[] = ['name' => $name];
 	}
 	if ($count > 500) {
+		
 		$firstPack = [];
 		$secondPack = [];
+		$ids = [];
 		foreach ($data as $key => $value) {
 			$key < 500 ? $firstPack[] = $value : $secondPack[] = $value;
 		}
@@ -44,7 +45,16 @@ function createEntities($type, $count, $method) {
 		$secondPack = json_encode($secondPack);
 
 		$responseOfFirst = $curl->postRequest($headers, $link, $firstPack);
+		foreach ($responseOfFirst->_embedded->$method as $entity) {
+			$ids[] = $entity->id;
+		}
 		$responseOfSecond = $curl->postRequest($headers, $link, $secondPack);
+		foreach ($responseOfSecond->_embedded->$method as $entity) {
+			$ids[] = $entity->id;
+		}
+
+		return $ids;
+
 	} else {
 		$data = json_encode($data);
 		$response = $curl->postRequest($headers, $link, $data);
@@ -52,8 +62,8 @@ function createEntities($type, $count, $method) {
 		foreach ($response->_embedded->$method as $entity) {
 			$ids[] = $entity->id;
 		}
-		$json_ids = json_encode($ids);
-		file_put_contents("tmp/{$method}_ids.json", $json_ids);
+		
+		return $ids;
 	}
 }
 
@@ -61,31 +71,37 @@ function createEntities($type, $count, $method) {
 * Линкование экземпляров сущности
 * 
 * @param string $master
-* @param string $slave
+* @param array $slaves
+* @param array $masterIds
+* @param array $slavesIds
 *
 */
-function linkEntities($master, $slave) {
+function linkEntities($master, $slaves, $masterIds, $slavesIds) {
 	$curl = new Curl();
 	$headers = [
 		'Authorization: Bearer ' . ACCESS_TOKEN,
 		'Content-Type: application/json'
 	];
-	$masterIds = json_decode(file_get_contents("tmp/{$master}_ids.json"));
-	$slaveIds = json_decode(file_get_contents("tmp/{$slave}_ids.json"));
-	$i = 0;
+	$j = 0;
+	
 	foreach ($masterIds as $id) {
+		$data = [];
 		$link = "https://skomarov.amocrm.ru/api/v4/{$master}/{$id}/link";
-		$data = [
-			[
-				'to_entity_id' => $slaveIds[$i],
-				'to_entity_type' => $slave,
-			]
-		];
+		$i = 0;
+
+		foreach ($slaves as $slave) {
+			$embedded = [
+				'to_entity_id' => $slavesIds[$i][$j],
+				'to_entity_type' => $slaves[$i],
+			];
+
+			$data[] = $embedded;
+			$i++;
+		}
+		$j++;
 
 		$data = json_encode($data);
 		$response = $curl->postRequest($headers, $link, $data);
-		print_r($response); 
-		$i++;
 	}
 }
 
