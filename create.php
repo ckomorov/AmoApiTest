@@ -49,16 +49,7 @@ function createEntities($type, $count, $method) {
 
 	} else {
 		
-		$packs = [];
-		$pack = [];
-		foreach ($data as $key => $value) {
-			$pack[] = $value;
-			if (count($pack) != 500 && count($pack) < 500) {
-				continue;
-			} elseif (count($pack = 500)) {
-				$packs[] = $pack;
-			}
-		}
+		$packs = array_chunk($data, 500);
 		
 		foreach ($packs as $pack) {
 			$pack = json_encode($pack);
