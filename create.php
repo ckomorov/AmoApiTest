@@ -33,29 +33,11 @@ function createEntities($type, $count, $method) {
 		$name = $type .  ' #' . $i;
 		$data[] = ['name' => $name];
 	}
-	if ($count > 500) {
+
+	$n = round(count($data) / 500);
+
+	if ($n == 0) {
 		
-		$firstPack = [];
-		$secondPack = [];
-		$ids = [];
-		foreach ($data as $key => $value) {
-			$key < 500 ? $firstPack[] = $value : $secondPack[] = $value;
-		}
-		$firstPack = json_encode($firstPack);
-		$secondPack = json_encode($secondPack);
-
-		$responseOfFirst = $curl->postRequest($headers, $link, $firstPack);
-		foreach ($responseOfFirst->_embedded->$method as $entity) {
-			$ids[] = $entity->id;
-		}
-		$responseOfSecond = $curl->postRequest($headers, $link, $secondPack);
-		foreach ($responseOfSecond->_embedded->$method as $entity) {
-			$ids[] = $entity->id;
-		}
-
-		return $ids;
-
-	} else {
 		$data = json_encode($data);
 		$response = $curl->postRequest($headers, $link, $data);
 		$ids = [];
@@ -63,6 +45,29 @@ function createEntities($type, $count, $method) {
 			$ids[] = $entity->id;
 		}
 		
+		return $ids;
+
+	} else {
+		
+		$packs = [];
+		$pack = [];
+		foreach ($data as $key => $value) {
+			$pack[] = $value;
+			if (count($pack) != 500 && count($pack) < 500) {
+				continue;
+			} elseif (count($pack = 500)) {
+				$packs[] = $pack;
+			}
+		}
+		
+		foreach ($packs as $pack) {
+			$pack = json_encode($pack);
+			$response = $curl->postRequest($headers, $link, $pack);
+			foreach ($response->_embedded->$method as $entity) {
+				$ids[] = $entity->id;
+			}
+		}
+
 		return $ids;
 	}
 }
